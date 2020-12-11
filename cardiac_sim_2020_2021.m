@@ -134,6 +134,9 @@ plot(Vv,UleftVent)
 xlabel("Ventricular volume [ml]");
 ylabel("Ventricular pressure [mmHg]");
 
+%% part where we vary some stuff to mimic some physiological phenomena
+
+
 %%
 function e = elastance (t, cardiacCycle, Emax, Emin)
     % **
