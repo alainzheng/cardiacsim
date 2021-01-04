@@ -13,6 +13,13 @@
 
 % *** from MIT course
 
+% **** from "Transient Hemodynamic Changes upon Changing a BCPA 
+% into a TCPC in Staged Fontan Operation: A Computational
+% Model Study"
+
+% ***** from "The elastance model implemented in a
+% left ventricle finite element model"
+
 clear all; close all;
 
 
@@ -34,28 +41,34 @@ V0 = 15; % dead volume [ml] ***
 %%systemic circulation (windkessel) W4series
 Rperi = 1; % [mmHg/(ml/s)] total peripheral resistance *
 Cart = 2; % [ml/mmHg] total arterial capacitance *
-Raorta = 0.0398; % [mmHg/(ml/s)] characteristic resistance of aorta **
-Laorta = 0.0005; % [mmHg/(ml/s2)] inertance of blood in aorta **
+Rartery = 0.0398; % [mmHg/(ml/s)] characteristic resistance of aorta **
+Laorta = 0.00005; % [mmHg/(ml/s2)] inertance of blood in aorta **
 
 %%valves
 RmitralValve = 0.005; % [mmHg/(ml/s)] mitral valve resistance * 0.01
-RaorticValve = 0.1; % [mmHg/(ml/s)] aortic valve resistance * 0.05
+RaorticValve = 0.01; % [mmHg/(ml/s)] aortic valve resistance * 0.05
 
 
 
 %% just helps visualise the variable elastance/compliance of the left
 %%% ventricle
 
-% t = 0:0.001:6*cardiacCycle;
-% x = elastance(t,cardiacCycle,Emax,Emin);
+t = 0:0.001:2*cardiacCycle;
+x = elastance(t,cardiacCycle,Emax,Emin);
+el2 = []; el3 = [];
+for i = 0:0.001:2*cardiacCycle
+    el2 = [el2 elastance2(i,cardiacCycle,Emax,Emin)];
+    el3 = [el3 elastance3(i,cardiacCycle,Emax,Emin)];
+end
 % figure(1)
 % plot(t, x)
 % xlabel("time [s]");
 % ylabel("elastance [mmHg/ml] and compliance [ml/mmHg]");
 % hold on
-% plot(t, 1./x)
+% plot(t, el2)
+% plot(t, el3)
 % hold off
-
+% legend('elastance **','elastance ****','elastance *****')
 
 
 %% real code starts here:
@@ -66,12 +79,12 @@ tend = ceil(6*cardiacCycle); % we at least n full cycles
 %%% initial conditions
 Vv0 = 150; % Vv(t) ml 
 Up0 = 110; % Up(t) mmHg
-Ua0 = 90; %  Ua(t) mmHg
+Ua0 = 100; %  Ua(t) mmHg
 
 %%% ordinary differential equation (ode) system
 [t,y] = ode45( @(t, y) solve_system(t, y, cardiacCycle,...
     Emax, Emin, UleftAtria, UrightAtria, V0,...
-    Rperi, Cart, Raorta, Laorta,...
+    Rperi, Cart, Rartery, Laorta,...
     RmitralValve, RaorticValve),...
     [tstart tend], [Vv0 Up0 Ua0]);
 Vv = y(:,1); % = Volume in the left ventricle
@@ -107,43 +120,68 @@ legend('left ventricule','aorta','peri')
 hold off
 
 
-subplot(2,1,2)
-plot(t,I)
-xlabel("time [s]");
-ylabel("Blood Flow [ml/s]");
-hold on
-plot(t, Imitval)
-plot(t, Iperi)
-legend('Aortic','Mitral','peri')
-hold off
-
-figure(3)
-subplot(2,1,1)
-plot(t,Vv)
-xlabel("time [s]");
-ylabel("Vent. volume [ml]");
-subplot(2,1,2)
-plot(t, UleftVent)
-xlabel("time [s]");
-ylabel("Ventricular pressure [mmHg]");
-
-
-
-figure(4)
-plot(Vv,UleftVent)
-xlabel("Ventricular volume [ml]");
-ylabel("Ventricular pressure [mmHg]");
+% subplot(2,1,2)
+% plot(t,I)
+% xlabel("time [s]");
+% ylabel("Blood Flow [ml/s]");
+% hold on
+% plot(t, Imitval)
+% plot(t, Iperi)
+% legend('Aortic','Mitral','peri')
+% hold off
+% 
+% figure(3)
+% subplot(2,1,1)
+% plot(t,Vv)
+% xlabel("time [s]");
+% ylabel("Vent. volume [ml]");
+% subplot(2,1,2)
+% plot(t, UleftVent)
+% xlabel("time [s]");
+% ylabel("Ventricular pressure [mmHg]");
+% 
+% 
+% 
+% figure(4)
+% plot(Vv,UleftVent)
+% xlabel("Ventricular volume [ml]");
+% ylabel("Ventricular pressure [mmHg]");
 
 %% part where we vary some stuff to mimic some physiological phenomena
 
 
 %%
-function e = elastance (t, cardiacCycle, Emax, Emin)
+function e = elastance(t, cardiacCycle, Emax, Emin)
     % **
     Tmax = 0.2+0.15*cardiacCycle;
     tn = mod(t, cardiacCycle)/Tmax;
     e = (Emax - Emin) *1.55*((tn/0.7).^1.9) ./...
         (1+((tn/0.7).^1.9)) .* (1 ./ (1+(tn/1.17).^21.9))+ Emin;
+end
+
+function e = elastance2(t, cardiacCycle, Emax, Emin)
+    %**** values of tvc and tvr are from me
+    tn = mod(t,cardiacCycle);
+    tvc = 0.2; tvr = 0.3; 
+    if 0 < tn && tn <= tvc
+        et = 0.5*(1-cos(pi*tn/tvc));
+    elseif tvc < tn && tn <= tvc+tvr
+        et = 0.5*(1+cos(pi*(tn-tvc)/tvr));  
+    else
+        et = 0;
+    end
+    e = Emax*et + Emin;
+end
+
+%%
+function e = elastance3 (t, cardiacCycle, Emax, Emin)
+    tn = mod(t,cardiacCycle);
+    if 0 <= tn && tn <= 0.5*cardiacCycle
+        act = 0.5 - 0.5 * cos(4*pi*(tn/cardiacCycle-0.5));
+    elseif 0.5*cardiacCycle < tn && tn < 1*cardiacCycle
+        act = 0;  
+    end
+    e = Emin + act*Emax;
 end
 
 %%
@@ -163,7 +201,7 @@ end
 %%
 function [ydot] = solve_system(t, y, cardiacCycle,...
     Emax, Emin, UleftAtria, UrightAtria, V0,...
-    Rperi, Cart, Raorta, Laorta,...
+    Rperi, Cart, Rartery, Laorta,...
     RmitralValve, RaorticValve)
 % holy moly
 % y(1) = (Vv) Volume in the left ventricle
@@ -181,8 +219,8 @@ ydot(2,1) = ( (UrightAtria - y(2))/(Rperi*Cart) ) + ...
         
 ydot(3,1) = -(RaorticValve/Laorta)*(y(3)-y(2))+...
             +(delastance(t, cardiacCycle, Emax, Emin)*(y(1)-V0) + elastance(t, cardiacCycle, Emax, Emin)*ydot(1))*...
-            heaviside(elastance(t, cardiacCycle, Emax, Emin) * (y(1)-V0) - y(3))-...
-            (Raorta/Laorta)*(elastance(t, cardiacCycle, Emax, Emin) * (y(1)-V0) - y(3))*...
+            heaviside(elastance(t, cardiacCycle, Emax, Emin) * (y(1)-V0) - y(3))+...
+            (Rartery/Laorta)*(elastance(t, cardiacCycle, Emax, Emin) * (y(1)-V0) - y(3))*...
             heaviside(elastance(t, cardiacCycle, Emax, Emin) * (y(1)-V0) - y(3));
 end
 
